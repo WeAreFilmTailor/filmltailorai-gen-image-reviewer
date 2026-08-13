@@ -1,0 +1,238 @@
+@page "/new"
+@using GenImageReviewer.Providers
+@using GenImageReviewer.Services
+@inject ComparisonService ComparisonService
+@inject PromptGenerationService PromptGenerationService
+@inject NavigationManager Nav
+
+<PageTitle>New Comparison</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-6">New Comparison Run</MudText>
+
+@if (_running)
+{
+    <MudCard Class="mb-4">
+        <MudCardContent>
+            <MudText Typo="Typo.h6" Class="mb-3">Running…</MudText>
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
+            @foreach (var msg in _progressLog)
+            {
+                <MudText Typo="Typo.body2" Color="Color.Secondary">@msg</MudText>
+            }
+        </MudCardContent>
+    </MudCard>
+}
+else
+{
+    <MudGrid>
+        <MudItem xs="12" md="8">
+            <MudCard>
+                <MudCardContent>
+                    <MudExpansionPanels Class="mb-4">
+                        <MudExpansionPanel Text="Generate prompt from synopsis" Icon="@Icons.Material.Filled.AutoAwesome">
+                            <MudTextField @bind-Value="_synopsis" Label="Synopsis / Scene Description"
+                                          Variant="Variant.Outlined" Lines="5" Class="mb-3"
+                                          Placeholder="A detective noir set in 1940s Los Angeles. A hard-boiled private eye is hired by a wealthy widow to find her missing husband. The trail leads through smoky jazz clubs, rain-slicked backstreets and a corrupt police precinct before culminating in a rain-soaked rooftop confrontation..." />
+                            <MudButton Variant="Variant.Filled" Color="Color.Secondary"
+                                       StartIcon="@Icons.Material.Filled.AutoAwesome"
+                                       Disabled="@(_generatingPrompt || string.IsNullOrWhiteSpace(_synopsis))"
+                                       OnClick="GeneratePromptAsync">
+                                @(_generatingPrompt ? "Generating…" : "Generate Prompt")
+                            </MudButton>
+                            @if (!string.IsNullOrEmpty(_promptGenError))
+                            {
+                                <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2">@_promptGenError</MudAlert>
+                            }
+                        </MudExpansionPanel>
+                    </MudExpansionPanels>
+
+                    <MudTextField @bind-Value="_prompt" Label="Prompt" Variant="Variant.Outlined"
+                                  Lines="4" Class="mb-4" Required="true"
+                                  Placeholder="A majestic lion standing on a rocky cliff at sunset, photorealistic, 8k" />
+
+                    <MudTextField @bind-Value="_negativePrompt" Label="Negative Prompt (optional)"
+                                  Variant="Variant.Outlined" Lines="2" Class="mb-4"
+                                  Placeholder="blurry, low quality, watermark" />
+
+                    <MudText Typo="Typo.subtitle1" Class="mb-1">Reference Image (optional)</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+                        When provided, Claude will also score how closely each generated image matches it.
+                    </MudText>
+                    <InputFile id="refImageInput" OnChange="OnReferenceImageChanged" accept="image/*" style="display:none" />
+                    <div class="d-flex align-center gap-3 mb-4">
+                        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Upload"
+                                   HtmlTag="label" for="refImageInput">
+                            Choose file
+                        </MudButton>
+                        @if (_referenceImageData is not null)
+                        {
+                            <MudChip T="string" Color="Color.Success" Icon="@Icons.Material.Filled.Image"
+                                     OnClose="ClearReference">
+                                @_referenceFileName
+                            </MudChip>
+                            <MudImage Src="@GetReferenceDataUrl()" Height="60" ObjectFit="ObjectFit.Cover"
+                                      Style="border-radius:4px" />
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">No file chosen</MudText>
+                        }
+                    </div>
+
+                    <MudDivider Class="mb-4" />
+
+                    <MudText Typo="Typo.subtitle1" Class="mb-2">Providers</MudText>
+                    @foreach (var provider in ComparisonService.AvailableProviders)
+                    {
+                        <MudCheckBox @bind-Value="_selectedProviders[provider.Name]"
+                                     Label="@provider.DisplayName" Color="Color.Primary" Class="mb-1" />
+                    }
+
+                    <MudDivider Class="my-4" />
+
+                    <MudGrid>
+                        <MudItem xs="6">
+                            <MudSelect @bind-Value="_width" Label="Width" Variant="Variant.Outlined">
+                                <MudSelectItem Value="512">512</MudSelectItem>
+                                <MudSelectItem Value="768">768</MudSelectItem>
+                                <MudSelectItem Value="1024">1024</MudSelectItem>
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="6">
+                            <MudSelect @bind-Value="_height" Label="Height" Variant="Variant.Outlined">
+                                <MudSelectItem Value="512">512</MudSelectItem>
+                                <MudSelectItem Value="768">768</MudSelectItem>
+                                <MudSelectItem Value="1024">1024</MudSelectItem>
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="6">
+                            <MudSelect @bind-Value="_quality" Label="Quality" Variant="Variant.Outlined">
+                                <MudSelectItem Value="ImageQuality.Low">Low (fastest)</MudSelectItem>
+                                <MudSelectItem Value="ImageQuality.Medium">Medium</MudSelectItem>
+                                <MudSelectItem Value="ImageQuality.High">High (slowest)</MudSelectItem>
+                            </MudSelect>
+                        </MudItem>
+                    </MudGrid>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               Disabled="@(!CanRun)" OnClick="RunAsync"
+                               StartIcon="@Icons.Material.Filled.PlayArrow">
+                        Run Comparison
+                    </MudButton>
+                    <MudButton Variant="Variant.Text" OnClick="@(() => Nav.NavigateTo("/"))">
+                        Cancel
+                    </MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+}
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <MudAlert Severity="Severity.Error" Class="mt-4">@_error</MudAlert>
+}
+
+@code {
+    private string _prompt = "";
+    private string _synopsis = "";
+    private bool _generatingPrompt;
+    private string? _promptGenError;
+    private string? _negativePrompt;
+    private int _width = 1024;
+    private int _height = 1024;
+    private ImageQuality _quality = ImageQuality.Medium;
+    private bool _running;
+    private string? _error;
+    private readonly List<string> _progressLog = [];
+    private Dictionary<string, bool> _selectedProviders = [];
+
+    private byte[]? _referenceImageData;
+    private string? _referenceImageMimeType;
+    private string? _referenceFileName;
+
+    protected override void OnInitialized()
+    {
+        _selectedProviders = ComparisonService.AvailableProviders
+            .ToDictionary(p => p.Name, _ => true);
+    }
+
+    private async Task GeneratePromptAsync()
+    {
+        _generatingPrompt = true;
+        _promptGenError = null;
+        try
+        {
+            _prompt = await PromptGenerationService.GenerateAsync(_synopsis);
+        }
+        catch (Exception ex)
+        {
+            _promptGenError = ex.Message;
+        }
+        finally
+        {
+            _generatingPrompt = false;
+        }
+    }
+
+    private bool CanRun =>
+        !string.IsNullOrWhiteSpace(_prompt) &&
+        _selectedProviders.Any(kv => kv.Value);
+
+    private async Task OnReferenceImageChanged(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        const long maxSize = 10 * 1024 * 1024; // 10 MB
+        using var ms = new MemoryStream();
+        await file.OpenReadStream(maxSize).CopyToAsync(ms);
+        _referenceImageData = ms.ToArray();
+        _referenceImageMimeType = file.ContentType;
+        _referenceFileName = file.Name;
+    }
+
+    private void ClearReference()
+    {
+        _referenceImageData = null;
+        _referenceImageMimeType = null;
+        _referenceFileName = null;
+    }
+
+    private string GetReferenceDataUrl() =>
+        _referenceImageData is not null
+            ? $"data:{_referenceImageMimeType};base64,{Convert.ToBase64String(_referenceImageData)}"
+            : "";
+
+    private async Task RunAsync()
+    {
+        _running = true;
+        _error = null;
+        _progressLog.Clear();
+
+        var progress = new Progress<string>(msg =>
+        {
+            _progressLog.Add(msg);
+            InvokeAsync(StateHasChanged);
+        });
+
+        var settings = new GenerationSettings(_width, _height,
+            string.IsNullOrWhiteSpace(_negativePrompt) ? null : _negativePrompt,
+            _quality);
+
+        var selected = _selectedProviders.Where(kv => kv.Value).Select(kv => kv.Key);
+
+        try
+        {
+            var runId = await ComparisonService.RunComparisonAsync(
+                _prompt, settings, selected,
+                _referenceImageData, _referenceImageMimeType,
+                progress);
+            Nav.NavigateTo($"/run/{runId}");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            _running = false;
+        }
+    }
+}

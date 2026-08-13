@@ -1,0 +1,75 @@
+@page "/"
+@using GenImageReviewer.Data
+@using GenImageReviewer.Services
+@inject ComparisonService ComparisonService
+@inject NavigationManager Nav
+
+<PageTitle>Image Generation Reviewer</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Comparison Runs</MudText>
+
+<MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+           OnClick="@(() => Nav.NavigateTo("/new"))" Class="mb-6">
+    New Comparison
+</MudButton>
+
+@if (_runs is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else if (_runs.Count == 0)
+{
+    <MudAlert Severity="Severity.Info">No comparison runs yet. Create one to get started.</MudAlert>
+}
+else
+{
+    <MudTable Items="_runs" Hover="true" Dense="true" Striped="true" T="ComparisonRun"
+              OnRowClick="@((TableRowClickEventArgs<ComparisonRun> e) => Nav.NavigateTo($"/run/{e.Item!.Id}"))">
+        <HeaderContent>
+            <MudTh>Date</MudTh>
+            <MudTh>Prompt</MudTh>
+            <MudTh>Providers</MudTh>
+            <MudTh>Avg Overall</MudTh>
+            <MudTh>Avg Accuracy</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</MudTd>
+            <MudTd Style="max-width:400px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                @context.Prompt
+            </MudTd>
+            <MudTd>@context.Results.Count</MudTd>
+            <MudTd>@AvgScore(context, r => r.OverallScore)</MudTd>
+            <MudTd>@AvgScore(context, r => r.AccuracyScore)</MudTd>
+            <MudTd>
+                <span @onclick:stopPropagation="true">
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                   OnClick="@(async () => await DeleteAsync(context.Id))" />
+                </span>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private List<ComparisonRun>? _runs;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _runs = await ComparisonService.GetRunsAsync();
+    }
+
+    private static string AvgScore(ComparisonRun run, Func<ComparisonResult, int?> selector)
+    {
+        var scores = run.Results.Select(selector).Where(s => s.HasValue).Select(s => s!.Value).ToList();
+        return scores.Count == 0 ? "—" : scores.Average().ToString("F1");
+    }
+
+    private async Task DeleteAsync(int id)
+    {
+        await ComparisonService.DeleteRunAsync(id);
+        await LoadAsync();
+    }
+}

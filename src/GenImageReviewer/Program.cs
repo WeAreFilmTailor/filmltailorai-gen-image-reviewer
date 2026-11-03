@@ -95,6 +95,17 @@ void RegisterFluxProvider(string configSection, string name, string displayName)
 RegisterFluxProvider("FLUX2Pro",  "flux-2-pro",  "FLUX.2 Pro");
 RegisterFluxProvider("FLUX2Flex", "flux-2-flex", "FLUX.2 Flex");
 
+// --- FLUX.3 (Black Forest Labs native API) ---
+var bflKey  = builder.Configuration["ImageProviders:BlackForestLabs:ApiKey"] ?? "";
+var bflBase = builder.Configuration["ImageProviders:BlackForestLabs:BaseUrl"] ?? "https://api.bfl.ai/";
+
+if (!string.IsNullOrWhiteSpace(bflKey))
+{
+    builder.Services.AddSingleton<IImageGenerationProvider>(sp =>
+        new Flux3ImageProvider("flux-3", "FLUX.3", bflBase, bflKey,
+            sp.GetRequiredService<ILogger<Flux3ImageProvider>>()));
+}
+
 // --- Claude reviewer ---
 var claudeKey   = builder.Configuration["Claude:ApiKey"] ?? "";
 var claudeModel = builder.Configuration["Claude:Model"] ?? "claude-sonnet-4-6";

@@ -75,6 +75,25 @@ void RegisterMaiProvider(string configSection, string name, string displayName)
 
 RegisterMaiProvider("MaiImage2",  "mai-image-2",  "MAI-Image-2");
 RegisterMaiProvider("MaiImage2e", "mai-image-2e", "MAI-Image-2e");
+RegisterMaiProvider("MaiImage2dot6", "mai-image-2.6", "MAI-Image-2.6");
+
+// --- FLUX.2 models (Black Forest Labs via Foundry) ---
+void RegisterFluxProvider(string configSection, string name, string displayName)
+{
+    var apiKey     = builder.Configuration[$"ImageProviders:{configSection}:ApiKey"] ?? "";
+    var endpoint   = builder.Configuration[$"ImageProviders:{configSection}:Endpoint"] ?? "";
+    var deployment = builder.Configuration[$"ImageProviders:{configSection}:Deployment"] ?? "";
+
+    if (!string.IsNullOrWhiteSpace(apiKey) && !string.IsNullOrWhiteSpace(endpoint))
+    {
+        builder.Services.AddSingleton<IImageGenerationProvider>(sp =>
+            new FluxImageProvider(name, displayName, endpoint, deployment, apiKey,
+                sp.GetRequiredService<ILogger<FluxImageProvider>>()));
+    }
+}
+
+RegisterFluxProvider("FLUX2Pro",  "flux-2-pro",  "FLUX.2 Pro");
+RegisterFluxProvider("FLUX2Flex", "flux-2-flex", "FLUX.2 Flex");
 
 // --- Claude reviewer ---
 var claudeKey   = builder.Configuration["Claude:ApiKey"] ?? "";

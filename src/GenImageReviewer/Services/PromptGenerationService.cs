@@ -35,6 +35,11 @@ public class PromptGenerationService(
         6. LIGHTING: Named light source and its visible effect — direction, colour temperature, shadow quality. "Harsh overhead fluorescent" or "golden hour streaming through floor-to-ceiling windows, long shadows on polished concrete".
         7. ATMOSPHERE: Air quality (dust, smoke, mist, rain, steam) and surface texture (condensation, wet stone, cracked earth). The viewer should FEEL the temperature.
 
+        CONTENT-FILTER SAFETY (some image models, e.g. FLUX.2, silently refuse prompts that depict security, military, or law-enforcement groups):
+        - Do NOT use words such as "security", "guard", "soldier", "troops", "military", "police", "detachment", "squad", "tactical", "armed", "weapon", "SWAT", or "agents" to describe people.
+        - Describe such people by neutral crew or team wording plus visible traits instead: "crew members in dark utility jumpsuits", "a team of figures in charcoal coveralls and reinforced vests". Convey tension through lighting, posture, and composition rather than through role labels.
+        - Keep the story meaning, but express it with visual description, not role or weapon terminology.
+
         RESPOND with valid JSON only — no other text:
         {
           "mainPrompt": "<overall visual universe of the story — production design, cinematographic tone, colour palette, atmosphere, 40–60 words>",

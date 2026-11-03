@@ -75,12 +75,17 @@ public class FluxImageProvider : IImageGenerationProvider
         }
 
         var root = JsonNode.Parse(json)!;
-        var b64  = root["data"]?[0]?["b64_json"]?.GetValue<string>();
+        // "data" can be an empty array (e.g. stop_reason "refusal"), so don't index blindly
+        var b64 = (root["data"] as JsonArray)?.FirstOrDefault()?["b64_json"]?.GetValue<string>();
 
         if (string.IsNullOrEmpty(b64))
         {
-            _logger.LogWarning("[{Provider}] No b64_json in response: {Body}", DisplayName, json);
-            return GenerationResult.Failure($"No image data returned from {DisplayName}");
+            var stopReason = root["stop_reason"]?.GetValue<string>();
+            _logger.LogWarning("[{Provider}] No b64_json in response (stop_reason: {Stop}): {Body}",
+                DisplayName, stopReason, json);
+            return GenerationResult.Failure(stopReason == "refusal"
+                ? $"{DisplayName} refused this prompt (content filter). Try rewording it."
+                : $"No image data returned from {DisplayName}" + (stopReason is null ? "" : $" (stop_reason: {stopReason})"));
         }
 
         var imageBytes = Convert.FromBase64String(b64);

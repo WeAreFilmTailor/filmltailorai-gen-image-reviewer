@@ -366,3 +366,5 @@ FodyWeavers.xsd
 
 
 *.db
+# Local dev settings (contain API keys)
+appsettings.Development.json

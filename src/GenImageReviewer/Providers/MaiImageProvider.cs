@@ -20,6 +20,7 @@ public class MaiImageProvider : IImageGenerationProvider
 
     public string Name { get; }
     public string DisplayName { get; }
+    public bool SupportsReferenceImage => false;
 
     public MaiImageProvider(
         string name,

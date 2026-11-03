@@ -20,17 +20,23 @@ internal static class BflTaskRunner
         ILogger logger,
         CancellationToken ct)
     {
-        using var submit = new HttpRequestMessage(HttpMethod.Post, submitUrl);
-        submit.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
-        submit.Headers.Add("x-key", apiKey);
+        var (submitOk, submitStatus, submitJson) = await SubmitAsync(submitUrl, apiKey, body, ct);
 
-        using var submitResponse = await Http.SendAsync(submit, ct);
-        var submitJson = await submitResponse.Content.ReadAsStringAsync(ct);
-
-        if (!submitResponse.IsSuccessStatusCode)
+        // Each BFL route has its own approved safety_tolerance ceiling (e.g. FLUX.2 may allow 5 while
+        // FLUX.3 allows 4). If we asked for too much, retry once at the highest approved level.
+        if (!submitOk && submitStatus == 422 && body["safety_tolerance"] is JsonNode requested
+            && TryGetApprovedMax(submitJson) is int approvedMax && approvedMax < requested.GetValue<int>())
         {
-            logger.LogWarning("[{Provider}] Submit HTTP {Status}: {Body}", displayName, (int)submitResponse.StatusCode, submitJson);
-            return GenerationResult.Failure($"{displayName} error {(int)submitResponse.StatusCode}: {submitJson}");
+            logger.LogWarning("[{Provider}] safety_tolerance {Requested} not approved for this model; retrying with {Max}",
+                displayName, requested.GetValue<int>(), approvedMax);
+            body["safety_tolerance"] = approvedMax;
+            (submitOk, submitStatus, submitJson) = await SubmitAsync(submitUrl, apiKey, body, ct);
+        }
+
+        if (!submitOk)
+        {
+            logger.LogWarning("[{Provider}] Submit HTTP {Status}: {Body}", displayName, submitStatus, submitJson);
+            return GenerationResult.Failure($"{displayName} error {submitStatus}: {submitJson}");
         }
 
         var pollingUrl = JsonNode.Parse(submitJson)?["polling_url"]?.GetValue<string>();
@@ -89,6 +95,33 @@ internal static class BflTaskRunner
                 null                => $"{displayName} error {(int)pollResponse.StatusCode}: {pollJson}",
                 _                   => $"{displayName} failed with status '{status}': {pollJson}",
             });
+        }
+    }
+
+    private static async Task<(bool Ok, int Status, string Json)> SubmitAsync(
+        string submitUrl, string apiKey, JsonObject body, CancellationToken ct)
+    {
+        using var submit = new HttpRequestMessage(HttpMethod.Post, submitUrl);
+        submit.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
+        submit.Headers.Add("x-key", apiKey);
+
+        using var response = await Http.SendAsync(submit, ct);
+        var json = await response.Content.ReadAsStringAsync(ct);
+        return (response.IsSuccessStatusCode, (int)response.StatusCode, json);
+    }
+
+    private static int? TryGetApprovedMax(string json)
+    {
+        try
+        {
+            var detail = JsonNode.Parse(json)?["detail"];
+            return detail?["code"]?.GetValue<string>() == "safety_tolerance_not_approved"
+                ? detail["maximum_approved_safety_tolerance"]?.GetValue<int>()
+                : null;
+        }
+        catch (Exception e) when (e is System.Text.Json.JsonException or InvalidOperationException or FormatException)
+        {
+            return null;
         }
     }
 }

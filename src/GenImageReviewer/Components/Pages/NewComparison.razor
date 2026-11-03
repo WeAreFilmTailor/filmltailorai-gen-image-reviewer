@@ -85,7 +85,8 @@ else
                     @foreach (var provider in ComparisonService.AvailableProviders)
                     {
                         <MudCheckBox @bind-Value="_selectedProviders[provider.Name]"
-                                     Label="@provider.DisplayName" Color="Color.Primary" Class="mb-1" />
+                                     Label="@(provider.DisplayName + (_referenceImageData is not null && !provider.SupportsReferenceImage ? " (ignores reference image)" : ""))"
+                                     Color="Color.Primary" Class="mb-1" />
                     }
 
                     <MudDivider Class="my-4" />

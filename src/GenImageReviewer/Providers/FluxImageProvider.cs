@@ -18,6 +18,7 @@ public class FluxImageProvider : IImageGenerationProvider
 
     public string Name { get; }
     public string DisplayName { get; }
+    public bool SupportsReferenceImage => false;
 
     public FluxImageProvider(
         string name,

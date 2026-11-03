@@ -5,7 +5,7 @@ namespace GenImageReviewer.Providers;
 // Black Forest Labs FLUX.2 models via the native BFL API (api.bfl.ai), as opposed to the
 // Azure Foundry-hosted FluxImageProvider. Endpoints: flux-2-pro, flux-2-flex, flux-2-max,
 // flux-2-klein-4b, flux-2-klein-9b. Takes exact width/height (multiples of 16) and
-// output_format. Reference images are ignored.
+// output_format. A reference image is sent as base64 in `input_image` (image-to-image / editing).
 public class BflFlux2ImageProvider : IImageGenerationProvider
 {
     private readonly string _submitUrl;
@@ -40,9 +40,6 @@ public class BflFlux2ImageProvider : IImageGenerationProvider
         string? referenceImageMimeType = null,
         CancellationToken ct = default)
     {
-        if (referenceImageData is not null)
-            _logger.LogInformation("[{Provider}] Reference image not supported — generating from prompt only", DisplayName);
-
         var width  = RoundTo16(settings.Width);
         var height = RoundTo16(settings.Height);
 
@@ -55,6 +52,9 @@ public class BflFlux2ImageProvider : IImageGenerationProvider
             ["height"]        = height,
             ["output_format"] = "png",
         };
+
+        if (referenceImageData is not null)
+            body["input_image"] = Convert.ToBase64String(referenceImageData);
 
         if (_extraBody is not null)
             foreach (var (key, value) in _extraBody)
